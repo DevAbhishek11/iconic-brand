@@ -1,5 +1,55 @@
-export default function WhyIBGIsDifferent() {
-  const differentiators = [
+import type { ReactNode } from 'react';
+import Link from 'next/link';
+
+type WhyIBGFeature = {
+  title: string;
+  description: string;
+  icon?: ReactNode;
+};
+
+type WhyIBGCopy = {
+  differentLabel?: string;
+  differentHeadingLead?: string;
+  differentHeadingHighlight?: string;
+  differentIntro?: string;
+  valueLabel?: string;
+  valueHeadingLead?: string;
+  valueHeadingHighlight?: string;
+  valueIntro?: string;
+  valueClosing?: string;
+};
+
+type WhyIBGIsDifferentProps = {
+  differentiators?: WhyIBGFeature[];
+  valuePillars?: WhyIBGFeature[];
+  copy?: WhyIBGCopy;
+};
+
+export default function WhyIBGIsDifferent({
+  differentiators: differentiatorsProp,
+  valuePillars: valuePillarsProp,
+  copy: copyProp,
+}: WhyIBGIsDifferentProps = {}) {
+  // Section labels, headings, intros, and the closing line default to the
+  // original hardcoded copy; a compound-key page (e.g. Birmingham services)
+  // passes unique per-service copy via `copy`.
+  const copy = copyProp ?? {};
+  const differentLabel = copy.differentLabel ?? 'Our Difference';
+  const differentHeadingLead = copy.differentHeadingLead ?? 'Why Iconic Brand Group';
+  const differentHeadingHighlight = copy.differentHeadingHighlight ?? 'Is Different';
+  const differentIntro =
+    copy.differentIntro ??
+    'Iconic Brand Group is more than a marketing agency. We are a business consulting firm first, with specialized full-service marketing capabilities built to support real business growth.';
+  const valueLabel = copy.valueLabel ?? 'Our Value';
+  const valueHeadingLead = copy.valueHeadingLead ?? 'How Iconic Brand Group';
+  const valueHeadingHighlight = copy.valueHeadingHighlight ?? 'Provides Value';
+  const valueIntro =
+    copy.valueIntro ??
+    'We help clients grow smarter and faster by delivering value in four core areas: money, time, risk, and status.';
+  const valueClosing =
+    copy.valueClosing ??
+    'We don’t just provide mentoring. We leverage our network and experience to build stronger, smarter, more valuable businesses.';
+  const defaultDifferentiators: WhyIBGFeature[] = [
     {
       title: "Operators First",
       description:
@@ -62,7 +112,7 @@ export default function WhyIBGIsDifferent() {
     },
   ];
 
-  const valuePillars = [
+  const defaultValuePillars: WhyIBGFeature[] = [
     {
       title: "Money",
       description:
@@ -105,6 +155,16 @@ export default function WhyIBGIsDifferent() {
     },
   ];
 
+  const differentiators = (differentiatorsProp ?? defaultDifferentiators).map((item, index) => ({
+    ...item,
+    icon: item.icon ?? defaultDifferentiators[index % defaultDifferentiators.length]?.icon,
+  }));
+
+  const valuePillars = (valuePillarsProp ?? defaultValuePillars).map((pillar, index) => ({
+    ...pillar,
+    icon: pillar.icon ?? defaultValuePillars[index % defaultValuePillars.length]?.icon,
+  }));
+
   return (
     <>
       {/* Row 1 — Why We're Different */}
@@ -122,18 +182,17 @@ export default function WhyIBGIsDifferent() {
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
               </svg>
               <span className="text-[#C19A2E] font-bold text-sm tracking-widest uppercase">
-                Our Difference
+                {differentLabel}
               </span>
             </div>
             <h2 className="text-5xl lg:text-6xl font-black mb-5 leading-tight text-black">
-              Why Iconic Brand Group{" "}
+              {differentHeadingLead}{" "}
               <span className="bg-linear-to-r from-[#D5AF34] via-[#C19A2E] to-[#5F9EA0] text-transparent bg-clip-text">
-                Is Different
+                {differentHeadingHighlight}
               </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              Iconic Brand Group is more than a marketing agency. We are a business consulting firm first,
-              with specialized full-service marketing capabilities built to support real business growth.
+              {differentIntro}
             </p>
           </div>
 
@@ -178,17 +237,17 @@ export default function WhyIBGIsDifferent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
               <span className="bg-linear-to-r from-[#D5AF34] to-[#C19A2E] text-transparent bg-clip-text font-bold text-sm tracking-widest uppercase">
-                Our Value
+                {valueLabel}
               </span>
             </div>
             <h2 className="text-5xl lg:text-6xl font-black mb-5 leading-tight text-white">
-              How Iconic Brand Group{" "}
+              {valueHeadingLead}{" "}
               <span className="bg-linear-to-r from-[#D5AF34] via-[#FFD700] to-[#5F9EA0] text-transparent bg-clip-text">
-                Provides Value
+                {valueHeadingHighlight}
               </span>
             </h2>
             <p className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
-              We help clients grow smarter and faster by delivering value in four core areas: money, time, risk, and status.
+              {valueIntro}
             </p>
           </div>
 
@@ -225,9 +284,9 @@ export default function WhyIBGIsDifferent() {
           {/* Closing Statement + CTA */}
           <div className="text-center border-t border-white/8 pt-14">
             <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-8 leading-relaxed italic">
-              &ldquo;We don&apos;t just provide mentoring. We leverage our network and experience to build stronger, smarter, more valuable businesses.&rdquo;
+              &ldquo;{valueClosing}&rdquo;
             </p>
-            <a
+            <Link
               href="/contact"
               className="inline-flex items-center gap-3 bg-linear-to-r from-[#D5AF34] to-[#C19A2E] text-black font-bold px-10 py-4 rounded-full text-sm tracking-wide uppercase hover:shadow-[0_0_30px_rgba(213,175,52,0.35)] hover:scale-[1.02] transition-all duration-300"
             >
@@ -235,7 +294,7 @@ export default function WhyIBGIsDifferent() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
-            </a>
+            </Link>
           </div>
         </div>
       </section>

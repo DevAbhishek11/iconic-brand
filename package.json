@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:birmingham-content": "node scripts/generate-birmingham-content.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

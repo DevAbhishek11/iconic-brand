@@ -12,6 +12,7 @@ import { getLocationBySlug, getNearbyLocations } from '@/lib/target-locations';
 import { getCityContext, getCityFAQs, getCategoryServices } from '@/lib/city-context';
 import { getMarketData, getExpertQuote, getServiceDefinition, getIndustryMistakes, getTestimonial, getCitationsForPage } from '@/lib/geo-content';
 import { getHeroImage } from '@/lib/hero-images';
+import { getCityServiceContent } from '@/lib/city-service-content';
 import TrustedBy from '@/components/TrustedBy';
 import WhyIBGIsDifferent from '@/components/WhyIBGIsDifferent';
 import IBGCarousel from '@/components/IBGCarousel';
@@ -43,6 +44,8 @@ export async function generateMetadata({
     return { title: 'Page Not Found' };
   }
 
+  const cityServiceContent = getCityServiceContent(keyword, location);
+
   const title = keywordData.metaTitle
     .replace('{city}', locationData.city)
     .replace('{stateCode}', locationData.stateCode)
@@ -52,9 +55,9 @@ export async function generateMetadata({
   // use [Hook]. [Supporting Detail]. [CTA]. format
   const isStartupCategory = ['startup', 'marketing', 'operations', 'funding', 'entrepreneur'].includes(keywordData.category);
   const serviceType = isStartupCategory ? 'business consulting and marketing' : 'marketing and consulting';
-  const description = `${keywordData.description} Serving ${locationData.city}, ${locationData.stateCode} and the ${locationData.market} area. Contact us for a free consultation.`;
+  const description = cityServiceContent?.hero.subtext ?? `${keywordData.description} Serving ${locationData.city}, ${locationData.stateCode} and the ${locationData.market} area. Contact us for a free consultation.`;
 
-  const canonicalUrl = `https://www.iconicbrandgroup.com/${keyword}/${location}`;
+  const canonicalUrl = `http://localhost:3000/${keyword}/${location}`;
 
   // MCP On-Page SEO: keywords should be contextually relevant, not stuffed
   const keywordsArray = [
@@ -174,6 +177,7 @@ export default async function KeywordLocationPage({
     notFound();
   }
 
+  const cityServiceContent = getCityServiceContent(keyword, location);
   const nearbyLocations = getNearbyLocations(location, 6);
   const h1 = keywordData.h1Template
     .replace('{city}', locationData.city)
@@ -183,18 +187,22 @@ export default async function KeywordLocationPage({
   // ── MCP: City-specific context for content differentiation ──
   const cityContext = getCityContext(locationData.slug || location, locationData.city, locationData.state, locationData.market, locationData.tier);
   const isStartup = isStartupKeyword(keyword);
-  const coreServices = getCategoryServices(keywordData.category);
+  const coreServices = cityServiceContent?.services.items ?? getCategoryServices(keywordData.category);
 
   // ── MCP GEO: Industry-specific mistakes (not generic startup vs franchise) ──
   const primaryIndustry = cityContext.industries[0] || 'smb';
-  const commonMistakes = getIndustryMistakes(primaryIndustry);
+  const commonMistakes = cityServiceContent?.commonMistakes.items ?? getIndustryMistakes(primaryIndustry);
 
   // ── MCP GEO: Expert quote, market data, definition, testimonial, citations ──
-  const expertQuote = getExpertQuote(primaryIndustry, locationData.city);
-  const marketData = getMarketData(locationData.tier);
-  const serviceDefinition = getServiceDefinition(keywordData.category);
-  const testimonial = getTestimonial(locationData.city);
-  const citations = getCitationsForPage(locationData.city, locationData.tier);
+  // When a compound-key content record exists (e.g. Birmingham services), every
+  // section below is driven by fully-generated, per-service unique content.
+  // Otherwise we fall back to the shared tier/industry/category helpers so all
+  // other cities keep working exactly as before.
+  const expertQuote = cityServiceContent?.expertQuote ?? getExpertQuote(primaryIndustry, locationData.city);
+  const marketData = cityServiceContent?.marketData ?? getMarketData(locationData.tier);
+  const serviceDefinition = cityServiceContent?.definition ?? getServiceDefinition(keywordData.category);
+  const testimonial = cityServiceContent?.trustedPartner.testimonial ?? getTestimonial(locationData.city);
+  const citations = cityServiceContent?.sources ?? getCitationsForPage(locationData.city, locationData.tier);
 
   // Service label: "consulting" for startup/ops, "marketing" for marketing, etc.
   const serviceLabel = isStartup
@@ -202,6 +210,96 @@ export default async function KeywordLocationPage({
     : keywordData.category === 'marketing'
     ? 'marketing and brand strategy'
     : 'marketing and consulting';
+
+  const heroHeading = cityServiceContent?.hero.headline ?? h1;
+  const heroHeadingParts = heroHeading.split(locationData.city);
+  const heroSubtext = cityServiceContent?.hero.subtext ?? `${keywordData.description} Iconic Brand Group brings proven ${serviceLabel} expertise to ${locationData.city} and the greater ${locationData.market} area.`;
+  const heroTrustBadges = cityServiceContent?.hero.trustBadges ?? [
+    '500+ Businesses Served',
+    '15+ Years Experience',
+    `${cityContext.industries.map(i => i.charAt(0).toUpperCase() + i.slice(1)).slice(0, 2).join(' & ')} Expertise`,
+  ];
+  const whyDifferent = cityServiceContent?.whyDifferent;
+  const valuePillars = cityServiceContent
+    ? [
+        { title: 'Money', description: cityServiceContent.valuePillars.money },
+        { title: 'Time', description: cityServiceContent.valuePillars.time },
+        { title: 'Risk', description: cityServiceContent.valuePillars.risk },
+        { title: 'Status', description: cityServiceContent.valuePillars.status },
+      ]
+    : undefined;
+  const overviewHeading = cityServiceContent?.trustedPartner.heading ?? `Trusted ${keywordData.title} Partner in ${locationData.city}`;
+  const overviewBody = cityServiceContent?.trustedPartner.body80Words ?? cityContext.uniqueParagraph;
+  const quickFacts = cityServiceContent?.trustedPartner.fiveQuickFacts ?? [
+    `Serving ${locationData.city} & ${locationData.market} Area`,
+    `Full-Service ${isStartup ? 'Consulting & Growth Strategy' : 'Marketing & Consulting'}`,
+    `Proven Track Record with ${cityContext.industries[0] ? cityContext.industries[0].charAt(0).toUpperCase() + cityContext.industries[0].slice(1) : 'Business'} Companies`,
+    'Data-Driven Strategies & Measurable Results',
+    'Free Initial Consultation Available',
+  ];
+  const tierMarketCharacteristics = marketCharacteristics[locationData.tier as keyof typeof marketCharacteristics] ?? marketCharacteristics.secondary;
+  const marketAnalysis = cityServiceContent?.marketAnalysis;
+  const marketAnalysisLabel = marketAnalysis?.snapshot.marketClassification ?? tierMarketCharacteristics.marketType;
+  const marketAnalysisHeading = marketAnalysis?.heading ?? `${locationData.city} Market Analysis for ${isStartup ? 'Startups & Growing Businesses' : 'Business Growth'}`;
+  const marketAnalysisBody = marketAnalysis?.body40Words ?? `Understanding the unique dynamics of the ${locationData.market} market is essential for success. ${locationData.city} is known for ${cityContext.rationale.toLowerCase()}, creating both opportunity and competitive pressure. Our team analyzes local competition, consumer behavior, and growth opportunities to create strategies that work specifically for ${locationData.city}.`;
+  const marketAnalysisBullets = {
+    marketOpportunity: marketAnalysis?.bullets.marketOpportunity ?? tierMarketCharacteristics.opportunity,
+    keyChallenge: marketAnalysis?.bullets.keyChallenge ?? tierMarketCharacteristics.challenge,
+    ourStrategy: marketAnalysis?.bullets.ourStrategy ?? tierMarketCharacteristics.strategy,
+  };
+  const marketSnapshot = {
+    marketRegion: marketAnalysis?.snapshot.marketRegion ?? locationData.region,
+    metroArea: marketAnalysis?.snapshot.metroArea ?? locationData.market,
+    marketClassification: marketAnalysis?.snapshot.marketClassification ?? locationData.tier,
+    state: marketAnalysis?.snapshot.state ?? locationData.state,
+  };
+
+  // ── Full-page override content (unique per service when available) ──
+  const primaryIndustryLabel = cityContext.industries[0]
+    ? cityContext.industries[0].charAt(0).toUpperCase() + cityContext.industries[0].slice(1)
+    : 'Diversified';
+  const primaryIndustryFocus = cityServiceContent?.marketData.primaryIndustryFocus ?? primaryIndustryLabel;
+
+  const servicesHeading = cityServiceContent?.services.heading ?? `Our ${keywordData.title} Services in ${locationData.city}`;
+  const servicesSubtext = cityServiceContent?.services.subtext ?? `Comprehensive ${serviceLabel} solutions to help your business thrive in the competitive ${locationData.market} market.`;
+
+  const industriesHeading = cityServiceContent?.industries.heading ?? `Industries We Serve in ${locationData.city}`;
+  const industriesIntro = cityServiceContent?.industries.intro ?? `${locationData.city} is known for ${cityContext.rationale.toLowerCase()}. We deliver specialized strategies for the industries driving the ${locationData.market} economy.`;
+  const industryTags = cityServiceContent?.industries.tags ?? cityContext.industries.map((i) => i.charAt(0).toUpperCase() + i.slice(1));
+  const industryPainPoints = cityServiceContent?.industries.painPoints ?? cityContext.painPoints;
+
+  const mistakesHeading = cityServiceContent?.commonMistakes.heading ?? `5 Costly ${primaryIndustryLabel} Marketing Mistakes in ${locationData.city}`;
+  const mistakesSubtext = cityServiceContent?.commonMistakes.subtext ?? `Avoid these common pitfalls that cost businesses in the ${locationData.market} market thousands in lost revenue.`;
+  // Normalize mistake shape (generated uses {mistake,consequence,solution}; helper matches)
+  const mistakeItems = commonMistakes;
+
+  const regionCaseStudy = caseStudies[locationData.region as keyof typeof caseStudies] ?? caseStudies.Southeast;
+  const caseStudy = {
+    badge: cityServiceContent?.caseStudy.badge ?? `${locationData.region} Success Story`,
+    headline: cityServiceContent?.caseStudy.headline ?? regionCaseStudy.headline,
+    result: cityServiceContent?.caseStudy.result ?? regionCaseStudy.result,
+    description: cityServiceContent?.caseStudy.description ?? regionCaseStudy.description,
+    industry: cityServiceContent?.caseStudy.industry ?? regionCaseStudy.industry,
+    delivered: cityServiceContent?.caseStudy.delivered ?? [
+      `Comprehensive market analysis for ${locationData.market}`,
+      'Custom multi-channel marketing strategy',
+      'Local SEO & Google Business Profile optimization',
+      'Ongoing performance tracking & optimization',
+    ],
+  };
+
+  const defaultProcessSteps = [
+    { title: 'Discovery & Audit', description: `Deep dive into your business, ${locationData.market} market dynamics, and competitive landscape.` },
+    { title: 'Strategy Development', description: `Custom growth roadmap with specific KPIs, timelines, and tactics for ${locationData.city}.` },
+    { title: 'Implementation', description: 'Execute marketing campaigns, optimize operations, and build local market presence.' },
+    { title: 'Optimize & Scale', description: 'Continuous optimization, monthly reporting, and scaling successful strategies across your system.' },
+  ];
+  const processHeading = cityServiceContent?.process.heading ?? `Our Proven Process for ${locationData.city} Business Success`;
+  const processSubtext = cityServiceContent?.process.subtext ?? 'A systematic approach refined through 500+ successful engagements.';
+  const processSteps = cityServiceContent?.process.steps ?? defaultProcessSteps;
+
+  const tldrOverride = cityServiceContent?.tldr;
+  const overviewSecondary = cityServiceContent?.overview.secondaryParagraph;
 
   // Generate JSON-LD Schema — per MCP Local SEO: use ProfessionalService,
   // remove fabricated aggregateRating (Google Structured Data policy)
@@ -351,31 +449,31 @@ export default async function KeywordLocationPage({
           </nav>
 
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
-            {h1.split(locationData.city)[0]}
-            <span className="bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text">
-              {locationData.city}
-            </span>
-            {h1.split(locationData.city)[1]}
+            {heroHeadingParts.length > 1 ? (
+              <>
+                {heroHeadingParts[0]}
+                <span className="bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text">
+                  {locationData.city}
+                </span>
+                {heroHeadingParts.slice(1).join(locationData.city)}
+              </>
+            ) : (
+              heroHeading
+            )}
           </h1>
 
           <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-4">
-            {keywordData.description} Iconic Brand Group brings proven {serviceLabel} expertise to {locationData.city} and the greater {locationData.market} area.
+            {heroSubtext}
           </p>
 
           {/* Social Proof - Above Fold (CRO requirement) */}
           <div className="flex flex-wrap items-center gap-6 mb-8">
-            <div className="flex items-center gap-2 text-gray-300">
-              <FaCheckCircle className="text-[#D5AF34] w-4 h-4 flex-shrink-0" />
-              <span>500+ Businesses Served</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-300">
-              <FaCheckCircle className="text-[#D5AF34] w-4 h-4 flex-shrink-0" />
-              <span>15+ Years Experience</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-300">
-              <FaCheckCircle className="text-[#D5AF34] w-4 h-4 flex-shrink-0" />
-              <span>{cityContext.industries.map(i => i.charAt(0).toUpperCase() + i.slice(1)).slice(0, 2).join(' & ')} Expertise</span>
-            </div>
+            {heroTrustBadges.map((badge) => (
+              <div key={badge} className="flex items-center gap-2 text-gray-300">
+                <FaCheckCircle className="text-[#D5AF34] w-4 h-4 flex-shrink-0" />
+                <span>{badge}</span>
+              </div>
+            ))}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
@@ -395,7 +493,7 @@ export default async function KeywordLocationPage({
         </div>
       </section>
 
-      <WhyIBGIsDifferent />
+      <WhyIBGIsDifferent differentiators={whyDifferent} valuePillars={valuePillars} copy={cityServiceContent?.differentiation} />
 
       {/* Intro Section with Snippet-Ready Answer (E-E-A-T requirement) */}
       <section className="py-16 bg-white">
@@ -404,7 +502,13 @@ export default async function KeywordLocationPage({
           <div className="bg-gradient-to-r from-[#D5AF34]/10 to-[#5F9EA0]/10 border-l-4 border-[#D5AF34] rounded-r-xl p-6 mb-8">
             <p className="text-xs font-bold text-[#D5AF34] uppercase tracking-wider mb-2">TL;DR — At a Glance</p>
             <p className="text-lg text-gray-800 leading-relaxed">
-              <strong>{keywordData.title} in {locationData.city}, {locationData.stateCode}</strong>: Iconic Brand Group provides {serviceLabel} services throughout the {locationData.market} area. Specializing in {cityContext.industries.slice(0, 2).join(' and ')}, our data-driven strategies help businesses increase revenue, expand their footprint, and build market dominance. Call (813) 263-6762 for a free consultation.
+              {tldrOverride ? (
+                tldrOverride
+              ) : (
+                <>
+                  <strong>{keywordData.title} in {locationData.city}, {locationData.stateCode}</strong>: Iconic Brand Group provides {serviceLabel} services throughout the {locationData.market} area. Specializing in {cityContext.industries.slice(0, 2).join(' and ')}, our data-driven strategies help businesses increase revenue, expand their footprint, and build market dominance. Call (813) 263-6762 for a free consultation.
+                </>
+              )}
             </p>
           </div>
 
@@ -428,17 +532,21 @@ export default async function KeywordLocationPage({
           <div id="overview" className="grid md:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">
-                Trusted {keywordData.title} Partner in {locationData.city}
+                {overviewHeading}
               </h2>
               {/* MCP Content Differentiation: unique paragraph per city from city-context.ts */}
               <p className="text-gray-600 mb-4">
-                {cityContext.uniqueParagraph}
+                {overviewBody}
               </p>
-              <p className="text-gray-600 mb-6">
-                Whether you&apos;re a startup navigating {locationData.city}&apos;s competitive landscape
-                or an established business seeking to scale, our team delivers customized solutions that
-                drive real results in the {locationData.market} market.
-              </p>
+              {overviewSecondary ? (
+                <p className="text-gray-600 mb-6">{overviewSecondary}</p>
+              ) : (
+                <p className="text-gray-600 mb-6">
+                  Whether you&apos;re a startup navigating {locationData.city}&apos;s competitive landscape
+                  or an established business seeking to scale, our team delivers customized solutions that
+                  drive real results in the {locationData.market} market.
+                </p>
+              )}
               
               {/* Rotating Testimonial (E-E-A-T: Social Proof — unique per city) */}
               <blockquote className="border-l-4 border-[#D5AF34] pl-4 italic text-gray-700">
@@ -449,26 +557,12 @@ export default async function KeywordLocationPage({
             <div className="bg-gray-100 rounded-2xl p-8">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Quick Facts</h3>
               <ul className="space-y-3">
-                <li className="flex items-start">
-                  <FaCheckCircle className="text-[#D5AF34] w-4 h-4 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">Serving {locationData.city} & {locationData.market} Area</span>
-                </li>
-                <li className="flex items-start">
-                  <FaCheckCircle className="text-[#D5AF34] w-4 h-4 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">Full-Service {isStartup ? 'Consulting & Growth Strategy' : 'Marketing & Consulting'}</span>
-                </li>
-                <li className="flex items-start">
-                  <FaCheckCircle className="text-[#D5AF34] w-4 h-4 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">Proven Track Record with {cityContext.industries[0] ? cityContext.industries[0].charAt(0).toUpperCase() + cityContext.industries[0].slice(1) : 'Business'} Companies</span>
-                </li>
-                <li className="flex items-start">
-                  <FaCheckCircle className="text-[#D5AF34] w-4 h-4 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">Data-Driven Strategies & Measurable Results</span>
-                </li>
-                <li className="flex items-start">
-                  <FaCheckCircle className="text-[#D5AF34] w-4 h-4 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">Free Initial Consultation Available</span>
-                </li>
+                {quickFacts.map((fact) => (
+                  <li key={fact} className="flex items-start">
+                    <FaCheckCircle className="text-[#D5AF34] w-4 h-4 mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="text-gray-700">{fact}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -572,11 +666,11 @@ export default async function KeywordLocationPage({
                 </tr>
                 <tr className="border-b border-gray-800">
                   <td className="py-3 px-4 text-sm">Primary Industry Focus</td>
-                  <td className="py-3 px-4 text-sm text-right font-semibold bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text">{cityContext.industries[0] ? cityContext.industries[0].charAt(0).toUpperCase() + cityContext.industries[0].slice(1) : 'Diversified'}</td>
+                  <td className="py-3 px-4 text-sm text-right font-semibold bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text">{primaryIndustryFocus}</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-4 text-sm">Market Classification</td>
-                  <td className="py-3 px-4 text-sm text-right font-semibold bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text capitalize">{locationData.tier} Market</td>
+                  <td className="py-3 px-4 text-sm text-right font-semibold bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text">{marketSnapshot.marketClassification}</td>
                 </tr>
               </tbody>
             </table>
@@ -595,14 +689,14 @@ export default async function KeywordLocationPage({
               <div className="inline-flex items-center gap-2 bg-[#D5AF34]/10 rounded-full px-4 py-2 mb-6">
                 <FaChartBar className="text-[#D5AF34] w-4 h-4" />
                 <span className="text-[#D5AF34] font-semibold text-sm">
-                  {marketCharacteristics[locationData.tier as keyof typeof marketCharacteristics]?.marketType || marketCharacteristics.secondary.marketType}
+                  {marketAnalysisLabel}
                 </span>
               </div>
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-                {locationData.city} Market Analysis for {isStartup ? 'Startups & Growing Businesses' : 'Business Growth'}
+                {marketAnalysisHeading}
               </h2>
               <p className="text-gray-600 mb-6">
-                Understanding the unique dynamics of the {locationData.market} market is essential for success. {locationData.city} is known for {cityContext.rationale.toLowerCase()}, creating both opportunity and competitive pressure. Our team analyzes local competition, consumer behavior, and growth opportunities to create strategies that work specifically for {locationData.city}.
+                {marketAnalysisBody}
               </p>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3">
@@ -611,7 +705,7 @@ export default async function KeywordLocationPage({
                   </span>
                   <div>
                     <p className="font-semibold text-gray-900">Market Opportunity</p>
-                    <p className="text-gray-600 text-sm">{marketCharacteristics[locationData.tier as keyof typeof marketCharacteristics]?.opportunity || marketCharacteristics.secondary.opportunity}</p>
+                    <p className="text-gray-600 text-sm">{marketAnalysisBullets.marketOpportunity}</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -620,7 +714,7 @@ export default async function KeywordLocationPage({
                   </span>
                   <div>
                     <p className="font-semibold text-gray-900">Key Challenge</p>
-                    <p className="text-gray-600 text-sm">{marketCharacteristics[locationData.tier as keyof typeof marketCharacteristics]?.challenge || marketCharacteristics.secondary.challenge}</p>
+                    <p className="text-gray-600 text-sm">{marketAnalysisBullets.keyChallenge}</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -629,7 +723,7 @@ export default async function KeywordLocationPage({
                   </span>
                   <div>
                     <p className="font-semibold text-gray-900">Our Strategy</p>
-                    <p className="text-gray-600 text-sm">{marketCharacteristics[locationData.tier as keyof typeof marketCharacteristics]?.strategy || marketCharacteristics.secondary.strategy}</p>
+                    <p className="text-gray-600 text-sm">{marketAnalysisBullets.ourStrategy}</p>
                   </div>
                 </li>
               </ul>
@@ -640,19 +734,19 @@ export default async function KeywordLocationPage({
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-3 border-b border-gray-200">
                     <span className="text-gray-600">Market Region</span>
-                    <span className="font-semibold text-gray-900">{locationData.region}</span>
+                    <span className="font-semibold text-gray-900">{marketSnapshot.marketRegion}</span>
                   </div>
                   <div className="flex justify-between items-center py-3 border-b border-gray-200">
                     <span className="text-gray-600">Metro Area</span>
-                    <span className="font-semibold text-gray-900">{locationData.market}</span>
+                    <span className="font-semibold text-gray-900">{marketSnapshot.metroArea}</span>
                   </div>
                   <div className="flex justify-between items-center py-3 border-b border-gray-200">
                     <span className="text-gray-600">Market Classification</span>
-                    <span className="font-semibold text-gray-900 capitalize">{locationData.tier}</span>
+                    <span className="font-semibold text-gray-900">{marketSnapshot.marketClassification}</span>
                   </div>
                   <div className="flex justify-between items-center py-3">
                     <span className="text-gray-600">State</span>
-                    <span className="font-semibold text-gray-900">{locationData.state}</span>
+                    <span className="font-semibold text-gray-900">{marketSnapshot.state}</span>
                   </div>
                 </div>
               </div>
@@ -666,11 +760,10 @@ export default async function KeywordLocationPage({
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-              Our {keywordData.title} Services in {locationData.city}
+              {servicesHeading}
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Comprehensive {serviceLabel} solutions to help your business
-              thrive in the competitive {locationData.market} market.
+              {servicesSubtext}
             </p>
           </div>
 
@@ -694,28 +787,27 @@ export default async function KeywordLocationPage({
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-              Industries We Serve in {locationData.city}
+              {industriesHeading}
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              {locationData.city} is known for {cityContext.rationale.toLowerCase()}. We deliver specialized
-              strategies for the industries driving the {locationData.market} economy.
+              {industriesIntro}
             </p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-4">
-            {cityContext.industries.map((industry, index) => (
+            {industryTags.map((industry, index) => (
               <span
                 key={index}
                 className="px-6 py-3 bg-gray-100 text-gray-800 rounded-full font-medium hover:bg-[#D5AF34] hover:text-black transition-colors cursor-default"
               >
-                {industry.charAt(0).toUpperCase() + industry.slice(1)}
+                {industry}
               </span>
             ))}
           </div>
 
           {/* City-specific pain points (MCP: unique value per page) */}
           <div className="mt-12 grid md:grid-cols-3 gap-6">
-            {cityContext.painPoints.map((painPoint, index) => (
+            {industryPainPoints.map((painPoint, index) => (
               <div key={index} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                 <div className="w-8 h-8 bg-[#D5AF34]/20 text-[#D5AF34] rounded-full flex items-center justify-center font-bold text-sm mb-3">
                   {index + 1}
@@ -732,15 +824,15 @@ export default async function KeywordLocationPage({
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-              5 Costly {cityContext.industries[0] ? cityContext.industries[0].charAt(0).toUpperCase() + cityContext.industries[0].slice(1) : 'Business'} Marketing Mistakes in {locationData.city}
+              {mistakesHeading}
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              Avoid these common pitfalls that cost businesses in the {locationData.market} market thousands in lost revenue.
+              {mistakesSubtext}
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {commonMistakes.slice(0, 5).map((item, index) => (
+            {mistakeItems.slice(0, 5).map((item, index) => (
               <div
                 key={index}
                 className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-[#D5AF34]/50 transition-colors"
@@ -770,20 +862,20 @@ export default async function KeywordLocationPage({
             <div>
               <div className="inline-flex items-center gap-2 bg-[#D5AF34]/20 rounded-full px-4 py-2 mb-6">
                 <FaChartLine className="text-[#D5AF34] w-4 h-4" />
-                <span className="text-[#D5AF34] font-semibold text-sm">{locationData.region} Success Story</span>
+                <span className="text-[#D5AF34] font-semibold text-sm">{caseStudy.badge}</span>
               </div>
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-                {caseStudies[locationData.region as keyof typeof caseStudies]?.headline || caseStudies.Southeast.headline}
+                {caseStudy.headline}
               </h2>
               <p className="text-4xl font-bold bg-gradient-to-r from-[#D5AF34] to-[#5F9EA0] text-transparent bg-clip-text mb-4">
-                {caseStudies[locationData.region as keyof typeof caseStudies]?.result || caseStudies.Southeast.result}
+                {caseStudy.result}
               </p>
               <p className="text-gray-600 mb-6">
-                {caseStudies[locationData.region as keyof typeof caseStudies]?.description || caseStudies.Southeast.description}
+                {caseStudy.description}
               </p>
               <div className="flex items-center gap-4">
                 <span className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                  {caseStudies[locationData.region as keyof typeof caseStudies]?.industry || caseStudies.Southeast.industry}
+                  {caseStudy.industry}
                 </span>
                 <span className="text-gray-500 text-sm">Similar results possible in {locationData.city}</span>
               </div>
@@ -791,22 +883,12 @@ export default async function KeywordLocationPage({
             <div className="bg-white rounded-2xl p-8 shadow-xl">
               <h3 className="text-xl font-bold text-gray-900 mb-6">What We Delivered</h3>
               <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <FaCheckCircle className="text-[#D5AF34] w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Comprehensive market analysis for {locationData.market}</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <FaCheckCircle className="text-[#D5AF34] w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Custom multi-channel marketing strategy</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <FaCheckCircle className="text-[#D5AF34] w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Local SEO & Google Business Profile optimization</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <FaCheckCircle className="text-[#D5AF34] w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Ongoing performance tracking & optimization</span>
-                </li>
+                {caseStudy.delivered.map((item, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <FaCheckCircle className="text-[#D5AF34] w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-700">{item}</span>
+                  </li>
+                ))}
               </ul>
               <Link
                 href="/contact"
@@ -824,34 +906,21 @@ export default async function KeywordLocationPage({
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-              Our Proven Process for {locationData.city} Business Success
+              {processHeading}
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              A systematic approach refined through 500+ successful engagements.
+              {processSubtext}
             </p>
           </div>
 
           <div className="grid md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#D5AF34] rounded-full flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4">1</div>
-              <h3 className="font-bold text-gray-900 mb-2">Discovery & Audit</h3>
-              <p className="text-gray-600 text-sm">Deep dive into your business, {locationData.market} market dynamics, and competitive landscape.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#D5AF34] rounded-full flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4">2</div>
-              <h3 className="font-bold text-gray-900 mb-2">Strategy Development</h3>
-              <p className="text-gray-600 text-sm">Custom growth roadmap with specific KPIs, timelines, and tactics for {locationData.city}.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#D5AF34] rounded-full flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4">3</div>
-              <h3 className="font-bold text-gray-900 mb-2">Implementation</h3>
-              <p className="text-gray-600 text-sm">Execute marketing campaigns, optimize operations, and build local market presence.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#D5AF34] rounded-full flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4">4</div>
-              <h3 className="font-bold text-gray-900 mb-2">Optimize & Scale</h3>
-              <p className="text-gray-600 text-sm">Continuous optimization, monthly reporting, and scaling successful strategies across your system.</p>
-            </div>
+            {processSteps.map((step, index) => (
+              <div key={index} className="text-center">
+                <div className="w-16 h-16 bg-[#D5AF34] rounded-full flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4">{index + 1}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{step.title}</h3>
+                <p className="text-gray-600 text-sm">{step.description}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
